@@ -2,12 +2,13 @@
 
 RAG Images è un'applicazione che utilizza tecniche di Retrieval-Augmented Generation (RAG) per analizzare immagini, generare descrizioni automatiche e rispondere a domande in linguaggio naturale. Combina il modello BLIP per la generazione di caption, Milvus o FAISS per la ricerca vettoriale e un LLM locale (es. LLaMA 2) per la generazione delle risposte.
 
-
+![Project Demo GIF](images/banner.jpg)
 ---
 
 ## Anteprima
 
-![Project Demo GIF](images/gif.gif)
+
+![Project Demo GIF](images/gif3.gif)
 
 ---
 
