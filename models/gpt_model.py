@@ -5,7 +5,7 @@ import os
 def generate_response_stream(
     context: list[str],
     user_input: str,
-    model="llama3.2:1b",
+    model="vicuna:7b",
     lang="it",
     max_tokens=300
 ):

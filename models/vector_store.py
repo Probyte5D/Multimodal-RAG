@@ -12,8 +12,6 @@ port = os.getenv("MILVUS_PORT", "19530")
 def init_milvus_collection(name="rag_image_texts"):
     connections.connect("default", host=host, port=port)
 
-    
-
     # Ora creiamo la collection da zero con lo schema aggiornato
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
@@ -58,46 +56,28 @@ def exists_text_with_image(collection, text, image_id):
         print(f"Query failed: {e}")
         return False
 
-def insert_to_milvus(collection, text_embedding, image_embedding, text, image_id):
+def insert_to_milvus(collection, text_embedding, image_embedding, text, image_id, partition_name=None):
     expr = f'image_id == "{image_id}"'
     try:
         results = collection.query(expr=expr, output_fields=["text"])
         exists = any(r["text"] == text for r in results)
+        if exists:
+            print(f"⚠️ L'immagine con image_id={image_id} e testo già esiste.")
+            return
     except Exception as e:
         print(f"Query failed: {e}")
-        exists = False
 
-    if not exists:
-        # Assicurati che text_embedding e image_embedding siano liste di vettori (batch size 1)
-        if not isinstance(text_embedding, (list, np.ndarray)):
-            text_embedding = [text_embedding]
-        if not isinstance(image_embedding, (list, np.ndarray)):
-            image_embedding = [image_embedding]
-
-        # Converti in lista di liste (float)
-        if isinstance(text_embedding, np.ndarray):
-            text_embedding = text_embedding.tolist()
-        if isinstance(image_embedding, np.ndarray):
-            image_embedding = image_embedding.tolist()
-
-        # Se per errore è una singola lista dentro una lista (es: [[...]]), fai un flatten
-        if len(text_embedding) > 0 and isinstance(text_embedding[0], list) and len(text_embedding) == 1:
-            text_embedding = text_embedding[0]
-        if len(image_embedding) > 0 and isinstance(image_embedding[0], list) and len(image_embedding) == 1:
-            image_embedding = image_embedding[0]
-
-        # Ora inserisci con batch=1
-        collection.insert([
+    try:
+        data = [
+            [image_id],
+            [text],
             [text_embedding],
             [image_embedding],
-            [text],
-            [image_id]
-        ])
-        collection.flush()
-        print(f"✅ Inserito nuovo dato per image_id={image_id}")
-    else:
-        print(f"⚠️ Dato già esistente per image_id={image_id}")
-
+        ]
+        collection.insert(data, partition_name=partition_name)
+        print(f"✅ Inserita image_id={image_id} nella partizione '{partition_name}'")
+    except Exception as e:
+        print(f"❌ Errore durante l'inserimento di image_id={image_id}: {e}")
 
 
 def search_similar(collection, query_embedding, anns_field="text_embedding", exclude_image_id=None, top_k=5, threshold=0.6):
@@ -114,4 +94,25 @@ def search_similar(collection, query_embedding, anns_field="text_embedding", exc
     for hit in results[0]:
         if hit.distance < threshold:
             filtered.append((hit.entity.get("text"), hit.entity.get("image_id")))
+    return filtered
+
+
+# 🔍 NUOVA FUNZIONE: Ricerca semantica per testo (non modifica le precedenti)
+def search_similar_by_text(collection, query_text: str, top_k=5, threshold=0.6):
+    query_embedding = get_embedding(query_text)
+    results = collection.search(
+        data=[query_embedding],
+        anns_field="text_embedding",
+        param={"metric_type": "L2", "params": {"nprobe": 10}},
+        limit=top_k,
+        output_fields=["text", "image_id"]
+    )
+    filtered = []
+    for hit in results[0]:
+        if hit.distance < threshold:
+            filtered.append({
+                "caption": hit.entity.get("text"),
+                "image_id": hit.entity.get("image_id"),
+                "distance": hit.distance
+            })
     return filtered
