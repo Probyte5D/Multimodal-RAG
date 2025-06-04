@@ -1,7 +1,6 @@
 #!/bin/sh
 
-MODEL_NAME="vicuna:7b"
-
+MODEL_NAME="llama3.2:1b"
 
 # Avvia il server Ollama in background
 ollama serve &
